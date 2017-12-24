@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en-UK">
+<head>
+	<title>page title</title>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<!--
+	<base href="xxx" target="_self" /> 
+	<link rel="stylesheet" href="style.css" />
+	-->
+	
+	<style>
+	
+	.e3d_shape>*{
+	background:inherit;
+	color:inherit;
+	border:inherit;
+	visibility:hidden;
+	}
+	.e3d_shape{
+	visibility:hidden;
+	}
+	
+	.seeThrough { opacity: 0.5; }
+	
+	.yellow {
+	background-color:khaki;
+	color:orange;
+	}
+		
+	.red {
+	background-color:pink;
+	color:red;
+	border:1px solid red;
+	}
+	
+	.blue {
+	background-color:powderblue;
+	color: DarkSlateBlue;
+	border: 2px solid blue;
+	}
+	
+	.blank{
+	background-color:white;
+	color:black;
+	border: 3px dotted black;
+	}
+	
+	</style>
+	
+</head>
+
+<body>
+
+	<h1> e3d shape test page</h1>
+
+	<div class = 'e3d_shape blank'
+	   e3dType = 'cuboid'
+	   e3dSize = '220 80 40'
+	   e3dCoor = '10 100 0'
+	   e3dRota = '0 30 0'
+	>
+	   <div>1</div>
+	   <div>22</div>
+	   <div>333</div>
+	   <div>4444</div>
+	   <div>55555</div>
+	   <div>666666</div>
+	</div> 
+
+	<div class = 'e3d_shape blank'
+	   e3dType = 'cube'
+	   e3dSize = '100'
+	   e3dCoor = '200 0 0'
+	   e3dRota = '45 45 0'
+	>
+		<div class = 'yellow' >1</div>
+	   <div class = 'blue'>22</div>
+	   <div class = 'red' >333</div>
+	   <div class = 'red seeThrough' >4444</div>
+	   <div class = 'blue'>55555</div>
+	   <div class = 'yellow' >666666</div>
+	   <div> I AM A TROUBLESOME 7TH FACE OF THE cube HAHAHA! </div>
+	      <div> I AM A TROUBLESOME 8TH FACE OF THE cube so there! </div>
+	</div> 
+	
+
+	
+	<div class = 'e3d_shape red'
+	   e3dType = 'prism'
+	   e3dSize = '150 60 150'
+	   e3dCoor = '250 40 0'
+	   e3dRota = '-30 90 000'
+	>
+		<div>face 0 </div>
+	   <div>face 1</div>
+	   <div>face 2 at angle</div>
+	   <div style = 'text-align:right;'> HOME </div>
+	   <div> f </div>
+	
+	</div> 
+
+	
+	<div class = 'e3d_shape blue'
+	   e3dType = 'pyramid'
+	   e3dSize = '200 200 200'
+	   e3dCoor = '250 150 00'
+	   e3dRota = '10 190 55'
+	>
+		<div> base </div>
+		<div ></div>
+		<div class='red' >22222</div>
+		<div class='yellow'>33333</div>
+		<div>44444</div>
+	</div> 
+
+		
+	
+	<script src='3dElements.js'></script>
+	
+	<script>
+		var Shape = document.getElementsByClassName('e3d_shape');
+		P = Shape[3];
+	</script>
+	
+</body>
+
+</html>
