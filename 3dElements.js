@@ -1,25 +1,28 @@
-if (document.body.style.perspective == '') { document.body.style.perspective = '5000px'};
 make3DShapesDefinedinHTML();
 
-function e3DShape(type, size, coor, orient, setClass)  {
+function e3DShape(type, size, coor, orient, setFaceClass)  {
 	var newShape = document.createElement('div');
-	document.body.appendChild(newShape);
-	
-	newShape.type = type;
-	newShape.size = size;
-	newShape.coor = coor;
-	newShape.orient = orient;
+		
+	newShape.type 	= type;
+	newShape.size 	= (typeof(size) === 'object')? size : [20,20,20];
+	newShape.coor 	= (typeof(coor) === 'object')? coor : {x:0, y:0, z:0};
+	newShape.orient	= (typeof(orient) === 'object')? orient : {x:0, y:0, z:0};
 	newShape.className= 'e3d_shape';
 	
-	addShapeStyleAndMethods.apply(newShape, []);	
+	newShape.style.transformStyle = 'preserve-3d';
+	newShape.style.visibility = 'hidden';
+	
+	addShapeMethods.apply(newShape, []);	
 	setUpFaces.apply(newShape, []);
 	
-	for (r=0; r<newShape.children.length; r++) {
-		newShape.children[r].className= setClass;
+	if (typeof(setFaceClass) === 'string' ) {
+		for (r=0; r<newShape.children.length; r++) {
+			newShape.children[r].className= setFaceClass;
+		}
 	}
-	
 	newShape.plot3d();
 	
+	document.body.appendChild(newShape); // unsure if keep this - best not auto-rendered?
 	return newShape;
 }
 
@@ -27,6 +30,23 @@ function make3DShapesDefinedinHTML() {
 	var Shape = document.getElementsByClassName('e3d_shape');
 	var coor,rota;
 	
+	for (loop=0; loop < Shape.length; loop++) {
+		Shape[loop].type = Shape[loop].getAttribute('e3dType');	
+		Shape[loop].size = feedAtributefromHTML('e3dSize');
+		coor = feedAtributefromHTML('e3dCoor',3);
+		Shape[loop].coor   = {x:coor[0], y:coor[1], z:coor[2]}
+		rota = feedAtributefromHTML('e3dRota',3);
+		Shape[loop].orient = {x:rota[0], y:rota[1], z:rota[2]}		
+		
+		Shape[loop].style.transformStyle = 'preserve-3d';
+		Shape[loop].style.visibility = 'hidden';
+		
+		addShapeMethods.apply(Shape[loop], []);	
+		setUpFaces.apply(Shape[loop], []);
+		Shape[loop].plot3d();
+	}
+
+		
 	function feedAtributefromHTML (atr, minimumNumberOfValues) {
 		if (arguments.length < 2) {minimumNumberOfValues = 1};
 		var string, value=[];
@@ -48,99 +68,110 @@ function make3DShapesDefinedinHTML() {
 		return value;
 	}
 	
-	for (loop=0; loop < Shape.length; loop++) {
-		Shape[loop].type = Shape[loop].getAttribute('e3dType');	
-		Shape[loop].size = feedAtributefromHTML('e3dSize');
-		coor = feedAtributefromHTML('e3dCoor',3);
-		Shape[loop].coor   = {x:coor[0], y:coor[1], z:coor[2]}
-		rota = feedAtributefromHTML('e3dRota',3);
-		Shape[loop].orient = {x:rota[0], y:rota[1], z:rota[2]}
-				
-		addShapeStyleAndMethods.apply(Shape[loop], []);	
-		setUpFaces.apply(Shape[loop], []);
-		Shape[loop].plot3d();
-	}
-
 }
 
-function addShapeStyleAndMethods() {
-	this.style.position = 'absolute';
-	this.style.transformStyle = 'preserve-3d';
-	this.style.top = '0px';
-	this.style.left = '0px';
-	this.style.visibility = 'hidden';
-	this.style.width = this.size[0]+"px";
-	this.style.height = this.size.length>1 ? this.size[1]+"px" : this.size[0]+"px";
+function addShapeMethods() {
+	
+	this.rotateVector = [0,0,0];
+	this.rotating = false;
 	
 	this.plot3d = function() { // set a Shape element's style.transform to match its coor and orient properties
 		var string ="";
+		
+		while (this.orient.x >= 360) {this.orient.x -= 360};
+		while (this.orient.x < 0) {this.orient.x += 360};
+		while (this.orient.y >= 360) {this.orient.y -= 360};
+		while (this.orient.y < 0) {this.orient.y += 360};
+		while (this.orient.z >= 360) {this.orient.z -= 360};
+		while (this.orient.z < 0) {this.orient.z += 360};
+		
 		string += "translateX("+this.coor.x+"px) ";
 		string += "translateY("+this.coor.y+"px) ";
 		string += "translateZ("+this.coor.z+"px) ";
 		string += "rotateX("+this.orient.x+"deg) ";
 		string += "rotateY("+this.orient.y+"deg) ";
 		string += "rotateZ("+this.orient.z+"deg) ";
-		this.style.transform = string;
+		this.style.transform = string;		
+		
 	};
-	
-	this.spinBy = function (spinArr,time) {this.spinAndMoveBy(spinArr,[],time);}
-	this.moveBy = function (moveArr,time) {this.spinAndMoveBy([],moveArr,time);}
-	this.spinTo = function (spinArr,time) {this.spinAndMoveTo(spinArr,[],time);}
-	this.moveTo = function (moveArr,time) {this.spinAndMoveTo([],moveArr,time);}
-	
-	this.spinAndMoveBy = function(spinArr, moveArr,time) {
-		var that = this;
+		
+	this.spin = function (spinParameters, addParamentersToCurrent, time, callback) {
+		var that = this;	
+		var V ={};
 		if (arguments.length < 3  || time <= 0 ) {time=1};
-		var V ={
-			spinArr:[0,0,0],
-			moveArr:[0,0,0]
+		
+		// default non-number parameters to 0
+		spinParameters[0] = typeof(spinParameters[0]) === "number" ? spinParameters[0] : 0;
+		spinParameters[1] = typeof(spinParameters[1]) === "number" ? spinParameters[1] : 0;
+		spinParameters[2] = typeof(spinParameters[2]) === "number" ? spinParameters[2] : 0;
+		
+		if (addParamentersToCurrent != true) {
+		spinParameters[0] -= this.orient.x; 
+		spinParameters[1] -= this.orient.y;
+		spinParameters[2] -= this.orient.z;
 		}
-		if (spinArr != undefined) {	
-			V.spinArr[0] = typeof(spinArr[0]) === "number" ? (spinArr[0])/time : 0;
-			V.spinArr[1] = typeof(spinArr[1]) === "number" ? (spinArr[1])/time : 0;
-			V.spinArr[2] = typeof(spinArr[2]) === "number" ? (spinArr[2])/time : 0;
-		}	
-		if (moveArr != undefined) {	
-			V.moveArr[0] = typeof(moveArr[0]) === "number" ? (moveArr[0])/time : 0;
-			V.moveArr[1] = typeof(moveArr[1]) === "number" ? (moveArr[1])/time : 0;
-			V.moveArr[2] = typeof(moveArr[2]) === "number" ? (moveArr[2])/time : 0;
-		}			
+		
+		V.x = (spinParameters[0]/time);
+		V.y = (spinParameters[1]/time);
+		V.z = (spinParameters[2]/time);
+		
+		stepSpin(time);	
+		
+		function stepSpin(n) {
+			that.orient.x   += V.x;
+			that.orient.y   += V.y;
+			that.orient.z   += V.z;
+			that.plot3d();			
+			if (n>1) {
+				setTimeout(function(){stepSpin(n-1)}, 10);
+			} else {
+				that.orient.x = Math.round(that.orient.x);
+				that.orient.y = Math.round(that.orient.y);
+				that.orient.z = Math.round(that.orient.z);
+				that.plot3d();
+				if (typeof(callback) == 'function') {callback()};
+			}
+		}				
+		return spinParameters;
+	}
+
+	this.move = function (moveParameters, addParamentersToCurrent, time, callback) {
+		var that = this;	
+		var V ={};
+		if (arguments.length < 3  || time <= 0 ) {time=1};
+		
+		// default non-number parameters to 0
+		moveParameters[0] = typeof(moveParameters[0]) === "number" ? moveParameters[0] : 0;
+		moveParameters[1] = typeof(moveParameters[1]) === "number" ? moveParameters[1] : 0;
+		moveParameters[2] = typeof(moveParameters[2]) === "number" ? moveParameters[2] : 0;
+		
+		if (addParamentersToCurrent != true) {
+		moveParameters[0] -= this.coor.x; 
+		moveParameters[1] -= this.coor.y;
+		moveParameters[2] -= this.coor.z;
+		}
+		
+		V.x = (moveParameters[0]/time);
+		V.y = (moveParameters[1]/time);
+		V.z = (moveParameters[2]/time);
+		
 		stepMove(time);	
 		
 		function stepMove(n) {
-			that.orient.x += V.spinArr[0];
-			that.orient.y += V.spinArr[1];
-			that.orient.z += V.spinArr[2];
-			that.coor.x   += V.moveArr[0];
-			that.coor.y   += V.moveArr[1];
-			that.coor.z   += V.moveArr[2];
+			that.coor.x   += V.x;
+			that.coor.y   += V.y;
+			that.coor.z   += V.z;
 			that.plot3d();			
 			if (n>1) {
 				setTimeout(function(){stepMove(n-1)}, 10);
+			} else {
+				if (typeof(callback) == 'function') {callback()};
 			}
-		}
+		}				
+		return V;
 	}
 	
-	this.spinAndMoveTo = function (spinArr, moveArr,time) {
-		var that = this;		
-		if (arguments.length < 3  || time <= 0 ) {time=1};
-		
-		if (spinArr != undefined) {	
-			spinArr[0] = typeof(spinArr[0]) === "number" ? spinArr[0] - that.orient.x : 0;
-			spinArr[1] = typeof(spinArr[1]) === "number" ? spinArr[1] - that.orient.y : 0;
-			spinArr[2] = typeof(spinArr[2]) === "number" ? spinArr[2] - that.orient.z : 0;
-		} else {spinArr = [0,0,0]}
-		
-		if (moveArr != undefined) {	
-			moveArr[0] = typeof(moveArr[0]) === "number" ? moveArr[0] - that.coor.x: 0;
-			moveArr[1] = typeof(moveArr[1]) === "number" ? moveArr[1] - that.coor.y: 0;
-			moveArr[2] = typeof(moveArr[2]) === "number" ? moveArr[2] - that.coor.z: 0;
-		} else {spinArr = [0,0,0]}
-		
-		that.spinAndMoveBy (spinArr, moveArr, time);	
-	}
-	
-	this.resize = function (sizeParameters, addParamentersToOldSize, time) {
+	this.resize = function (sizeParameters, addParamentersToCurrent, time, callback) {
 		var that = this;
 		var V = [];
 		
@@ -148,38 +179,68 @@ function addShapeStyleAndMethods() {
 		
 		for (r=0; r<this.size.length; r++ ) {
 			if (typeof sizeParameters[r] != 'undefined') {
-				if (addParamentersToOldSize == true) {
-						V[r] = sizeParameters[r] / time;
+				if (addParamentersToCurrent == true) {
+					V[r] = sizeParameters[r] / time;
 				} else {
-					V[r] = (sizeParameters[r]) / time
+					V[r] = (sizeParameters[r] - this.size[r]) / time
 				}
+			} else {
+				V[r] = 0;
 			}
 		}
 		
-		console.log(V);
 		stepSize(time);	
 		
 		function stepSize(n) {
 			for (r=0; r<V.length; r++ ) {
 				that.size[r] += V[r];
 			}	
-			console.log(n+': '+that.size);
 			setUpFaces.apply(that,[true]); 
 			// isResizeCall == true for setUpFaces, to improve performance by not repeating steps only needed at the first set up
 			if (n>1) {
 				setTimeout(function(){stepSize(n-1)}, 10);
+			} else  {
+				if (typeof(callback) == 'function') {callback()};
 			}
 		}
 	}
 	
+	this.stopRotation = function() {
+		this.rotateVector = [0,0,0];
+		clearInterval(this.rotating);
+	}
+	
+	this.startRotation = function (spinParameters, relativeToCurrent) {
+		var that = this, r;
+		
+		var r;
+		for (r=0; r<3; r++) {
+			this.rotateVector[r] = (relativeToCurrent === true )? spinParameters[r] + this.rotateVector[r] : spinParameters[r];
+		}
+		
+		clearInterval(this.rotating);
+		this.rotating = setInterval(applySpin, 10);
+		
+		function applySpin() {
+			that.orient.x += that.rotateVector[0];
+			that.orient.y += that.rotateVector[1];
+			that.orient.z += that.rotateVector[2];
+			that.plot3d();
+		//	console.log (duration);
+		}
+
+	}
 }
 
 function setUpFaces (isResizeCall) { // create and style 'Face' element children of shape elements
-	var requiredFaces, node, hypoth, angle;
+	var requiredFaces, node, hypoth, angle, triangleHeight, equalaterialCornerArray, shift, tilt;
 	var size = this.size;
 	var Faces = this.children;
 	Faces = [].slice.call(Faces);		//converts HTML Object collection to array
-		
+	
+	this.style.width = this.size[0]+"px";
+	this.style.height = this.size.length>1 ? this.size[1]+"px" : this.size[0]+"px";
+	
 	
 	if (isResizeCall != true) {
 		switch (this.type) {
@@ -190,6 +251,8 @@ function setUpFaces (isResizeCall) { // create and style 'Face' element children
 		case 'prism': requiredFaces = 5;
 		break;
 		case 'pyramid': requiredFaces = 5;
+		break;
+		case 'tetrahedron': requiredFaces = 4;
 		break;
 		default : requiredFaces = 0;
 		}
@@ -272,7 +335,8 @@ function setUpFaces (isResizeCall) { // create and style 'Face' element children
 			Faces[3].style.width  = size[2]+"px";		
 			Faces[3].style.height = size[1]+"px";
 			Faces[3].style.transform = "rotateY(270deg) translateZ(" + size[2]/2 + "px)";			
-						
+			Faces[3].style.textAlign = 'right';
+			
 			if (isResizeCall != true) { Faces[4].innerHTML += drawTriangle(Faces[4],[ [100,100],[0,100],[0,0] ]) };	
 			Faces[4].style.border = "0px";			
 			Faces[4].style.backgroundColor = "transparent";
@@ -344,6 +408,64 @@ function setUpFaces (isResizeCall) { // create and style 'Face' element children
 			Faces[4].style.backgroundColor = "transparent";
 			Faces[4].style.textAlign="center";
 			Faces[4].style.paddingTop='50%';
+			break;
+			
+			case 'tetrahedron':
+			triangleHeight = size[0] * Math.pow(3, 0.5)/2;
+			equalaterialCornerArray = [ [50,0],[100, 100],[0,100] ]
+			shift = size[0]*(72/500);
+			tilt =70.5;
+			
+			Faces[0].style.width  = size[0]+"px";		
+			Faces[0].style.height  = triangleHeight +"px";		
+			if (isResizeCall != true) { Faces[0].innerHTML += drawTriangle(Faces[0], equalaterialCornerArray) };			
+			Faces[0].style.border = "0px";
+			Faces[0].style.backgroundColor = "transparent";
+				
+			Faces[1].style.width  = size[0]+"px";		
+			Faces[1].style.height  = triangleHeight+"px";		
+			if (isResizeCall != true) { Faces[1].innerHTML += drawTriangle(Faces[1],equalaterialCornerArray) };
+			Faces[1].style.border = "0px";
+			Faces[1].style.backgroundColor = "transparent";
+
+			Faces[2].style.width  = size[0]+"px";		
+			Faces[2].style.height  = triangleHeight+"px";			
+			if (isResizeCall != true) { Faces[2].innerHTML += drawTriangle(Faces[2],equalaterialCornerArray) };
+			Faces[2].style.border = "0px";
+			Faces[2].style.backgroundColor = "transparent";
+
+			Faces[3].style.width  = size[0]+"px";		
+			Faces[3].style.height  = triangleHeight+"px";	
+			if (isResizeCall != true) { Faces[3].innerHTML += drawTriangle(Faces[3],equalaterialCornerArray) };			
+			Faces[3].style.border = "0px";
+			Faces[3].style.backgroundColor = "transparent";
+			
+			
+
+			
+			Faces[0].style.transform = "";		
+			Faces[0].style.transform += "translateY(" + shift + "px)";
+			Faces[0].style.transform += "rotateX(" + -tilt + "deg)";
+			
+			Faces[0].style.paddingTop='50%';
+			Faces[0].style.paddingLeft='21%';
+			Faces[0].style.paddingRight='21%';
+			
+			Faces[1].style.transform = "";
+			Faces[1].style.transform += "rotateZ(" + 120 + "deg)";
+			Faces[1].style.transform += "translateY(" + shift + "px)";
+			Faces[1].style.transform += "rotateX(" + -tilt + "deg)";
+			
+			Faces[2].style.transform = "";
+			Faces[2].style.transform += "rotateZ(" + 240 + "deg)";
+			Faces[2].style.transform += "translateY(" + shift + "px)";
+			Faces[2].style.transform += "rotateX(" + -tilt + "deg)";
+		
+			Faces[3].style.transform = "";
+			Faces[3].style.transform += "translateZ(" + -triangleHeight*(6.5/14) + "px)";		
+			Faces[3].style.transform += "translateY(" + -triangleHeight*(1/6) + "px)";		
+			Faces[3].style.transform += "rotateY(" + 180 + "deg)";
+			
 			
 			default:
 			// unrecognised type of shape
@@ -361,9 +483,11 @@ function setUpFaces (isResizeCall) { // create and style 'Face' element children
 		svgString += '<svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style="z-index:-10; position:absolute;left:0px;top:0px">';
 		
 		svgString += '<polygon points = "';
-		svgString += points[0][0] + ',' + points[0][1] + ' ';
-		svgString += points[1][0] + ',' + points[1][1] + ' ';
-		svgString += points[2][0] + ',' + points[2][1] + ' ';
+			
+		for (dot=0; dot<points.length; dot++){
+			svgString += points[dot][0] + ',' + points[dot][1] + ' ';
+		}
+		
 		svgString += '" '
 		
 		svgString += 'style = "fill:' + st.backgroundColor + ';';  
